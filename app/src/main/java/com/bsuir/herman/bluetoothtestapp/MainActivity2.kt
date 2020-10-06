@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
 import android.os.Message
+import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import kotlinx.android.synthetic.main.activity_main2.*
 import java.io.IOException
@@ -68,10 +69,16 @@ class MainActivity2 : AppCompatActivity() {
             val serverClass: ServerClass = ServerClass()
             serverClass.start()
         }
+        list_view.setOnItemClickListener { parent, view, position, id ->
+            val clientClass = ClientClass(bluetoothDevices[position])
+            clientClass.start()
+
+            tv_status.text = "Connecting"
+        }
     }
 
     val handler: Handler = Handler {
-        when(it.what){
+        when (it.what) {
             STATE_LISTENING -> {
                 tv_status.text = "Listening"
             }
@@ -91,28 +98,28 @@ class MainActivity2 : AppCompatActivity() {
         return@Handler true
     }
 
-    inner class ServerClass: Thread() {
+    inner class ServerClass : Thread() {
         private lateinit var bluetoothServerSocket: BluetoothServerSocket
 
         init {
             try {
                 bluetoothServerSocket = bluetoothAdapter
-                    .listenUsingRfcommWithServiceRecord(APP_NAME,MY_UUID)
-            } catch (e: IOException){
+                    .listenUsingRfcommWithServiceRecord(APP_NAME, MY_UUID)
+            } catch (e: IOException) {
                 e.printStackTrace()
             }
         }
 
-        fun run(){
+        override fun run() {
             var bluetoothSocket: BluetoothSocket? = null
-            while (bluetoothSocket == null){
+            while (bluetoothSocket == null) {
                 try {
                     val message: Message = Message.obtain()
                     message.what = STATE_CONNECTING
                     handler.sendMessage(message)
 
                     bluetoothSocket = bluetoothServerSocket.accept()
-                } catch (e: IOException){
+                } catch (e: IOException) {
                     e.printStackTrace()
 
                     val message: Message = Message.obtain()
@@ -120,7 +127,7 @@ class MainActivity2 : AppCompatActivity() {
                     handler.sendMessage(message)
                 }
 
-                if (bluetoothSocket != null){
+                if (bluetoothSocket != null) {
                     val message: Message = Message.obtain()
                     message.what = STATE_CONNECTED
                     handler.sendMessage(message)
@@ -129,6 +136,33 @@ class MainActivity2 : AppCompatActivity() {
                     break
                 }
 
+            }
+        }
+    }
+
+    inner class ClientClass(device: BluetoothDevice) : Thread() {
+        //        private lateinit var device: BluetoothDevice
+        private lateinit var socket: BluetoothSocket
+
+        init {
+            try {
+                socket = device.createRfcommSocketToServiceRecord(MY_UUID)
+            } catch (e: IOException) {
+                e.printStackTrace()
+            }
+        }
+
+        override fun run() {
+            try {
+                socket.connect()
+                val message = Message.obtain()
+                message.what = STATE_CONNECTED
+                handler.sendMessage(message)
+            } catch (e: IOException) {
+                e.printStackTrace()
+                val message = Message.obtain()
+                message.what = STATE_CONNECTION_FAILED
+                handler.sendMessage(message)
             }
         }
     }
