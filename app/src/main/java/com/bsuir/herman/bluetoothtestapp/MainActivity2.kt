@@ -2,6 +2,8 @@ package com.bsuir.herman.bluetoothtestapp
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothServerSocket
+import android.bluetooth.BluetoothSocket
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -9,6 +11,8 @@ import android.os.Handler
 import android.os.Message
 import android.widget.ArrayAdapter
 import kotlinx.android.synthetic.main.activity_main2.*
+import java.io.IOException
+import java.util.*
 import javax.security.auth.callback.Callback
 
 class MainActivity2 : AppCompatActivity() {
@@ -23,6 +27,10 @@ class MainActivity2 : AppCompatActivity() {
     val STATE_MESSAGE_RECIEVED: Int = 5
 
     val REQUEST_ENABLE_BLUETOOTH: Int = 1
+
+    private val APP_NAME = "BTChat"
+    private val MY_UUID: UUID = UUID
+        .fromString("8ce255c0-223a-11e0-ac64-0803450c9a66")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +63,11 @@ class MainActivity2 : AppCompatActivity() {
                 list_view.adapter = arrayAdapter
             }
         }
+
+        btn_listen.setOnClickListener {
+            val serverClass: ServerClass = ServerClass()
+            serverClass.start()
+        }
     }
 
     val handler: Handler = Handler {
@@ -76,5 +89,47 @@ class MainActivity2 : AppCompatActivity() {
             }
         }
         return@Handler true
+    }
+
+    inner class ServerClass: Thread() {
+        private lateinit var bluetoothServerSocket: BluetoothServerSocket
+
+        init {
+            try {
+                bluetoothServerSocket = bluetoothAdapter
+                    .listenUsingRfcommWithServiceRecord(APP_NAME,MY_UUID)
+            } catch (e: IOException){
+                e.printStackTrace()
+            }
+        }
+
+        fun run(){
+            var bluetoothSocket: BluetoothSocket? = null
+            while (bluetoothSocket == null){
+                try {
+                    val message: Message = Message.obtain()
+                    message.what = STATE_CONNECTING
+                    handler.sendMessage(message)
+
+                    bluetoothSocket = bluetoothServerSocket.accept()
+                } catch (e: IOException){
+                    e.printStackTrace()
+
+                    val message: Message = Message.obtain()
+                    message.what = STATE_CONNECTION_FAILED
+                    handler.sendMessage(message)
+                }
+
+                if (bluetoothSocket != null){
+                    val message: Message = Message.obtain()
+                    message.what = STATE_CONNECTED
+                    handler.sendMessage(message)
+
+                    TODO("here is gonna be code for sending/receiving msg")
+                    break
+                }
+
+            }
+        }
     }
 }
