@@ -13,6 +13,8 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import kotlinx.android.synthetic.main.activity_main2.*
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.*
 import javax.security.auth.callback.Callback
 
@@ -20,6 +22,8 @@ class MainActivity2 : AppCompatActivity() {
 
     lateinit var bluetoothAdapter: BluetoothAdapter
     lateinit var bluetoothDevices: Array<BluetoothDevice>
+
+    lateinit var sendReceive: SendReceive
 
     val STATE_LISTENING: Int = 1
     val STATE_CONNECTING: Int = 2
@@ -48,9 +52,10 @@ class MainActivity2 : AppCompatActivity() {
     }
 
     private fun implementListeners() {
-        list_view.setOnClickListener {
+        list_view.setOnItemClickListener {
             var bt: Set<BluetoothDevice> = bluetoothAdapter.bondedDevices
             var strings: Array<String> = emptyArray()
+            TODO("16:37 013 ролик тут правки")
             var index = 0
 
             if (bt.size > 0) {
@@ -75,6 +80,10 @@ class MainActivity2 : AppCompatActivity() {
 
             tv_status.text = "Connecting"
         }
+        btn_send_message.setOnClickListener {
+            val string = et_write_message.text.toString()
+            sendReceive.write(string.encodeToByteArray())
+        }
     }
 
     val handler: Handler = Handler {
@@ -92,7 +101,9 @@ class MainActivity2 : AppCompatActivity() {
                 tv_status.text = "Connection failed"
             }
             STATE_MESSAGE_RECIEVED -> {
-                TODO("write later")
+                val readBuffer: ByteArray = it.obj as ByteArray
+                var tempMessage = String(readBuffer,0,it.arg1)
+                tv_message.text = tempMessage
             }
         }
         return@Handler true
@@ -132,7 +143,8 @@ class MainActivity2 : AppCompatActivity() {
                     message.what = STATE_CONNECTED
                     handler.sendMessage(message)
 
-                    TODO("here is gonna be code for sending/receiving msg")
+                    sendReceive = SendReceive(bluetoothSocket)
+                    sendReceive.start()
                     break
                 }
 
@@ -158,11 +170,57 @@ class MainActivity2 : AppCompatActivity() {
                 val message = Message.obtain()
                 message.what = STATE_CONNECTED
                 handler.sendMessage(message)
+
+                sendReceive = SendReceive(socket)
+                sendReceive.start()
             } catch (e: IOException) {
                 e.printStackTrace()
                 val message = Message.obtain()
                 message.what = STATE_CONNECTION_FAILED
                 handler.sendMessage(message)
+            }
+        }
+    }
+
+    inner class SendReceive(socket: BluetoothSocket) : Thread() {
+        var bluetoothSocket: BluetoothSocket = socket
+        lateinit var inputStream: InputStream
+        lateinit var outputStream: OutputStream
+
+        init {
+            var tempIn: InputStream? = null
+            var tempOut: OutputStream? = null
+
+            try {
+                tempIn = bluetoothSocket.inputStream
+                tempOut = bluetoothSocket.outputStream
+            } catch (e: IOException) {
+                e.printStackTrace()
+            }
+
+            inputStream = tempIn!!
+            outputStream = tempOut!!
+        }
+
+        override fun run() {
+            var buffer = byteArrayOf(0)
+            var bytes: Int
+
+            while (true) {
+                try {
+                    bytes = inputStream.read(buffer)
+                    handler.obtainMessage(STATE_MESSAGE_RECIEVED, bytes, -1, buffer).sendToTarget()
+                } catch (e: IOException) {
+                    e.printStackTrace()
+                }
+            }
+        }
+
+        fun write(bytes: ByteArray) {
+            try {
+                outputStream.write(bytes)
+            } catch (e: IOException){
+                e.printStackTrace()
             }
         }
     }
