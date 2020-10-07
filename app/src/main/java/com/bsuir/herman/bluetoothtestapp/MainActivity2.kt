@@ -9,6 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
 import android.os.Message
+import android.util.Log
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import kotlinx.android.synthetic.main.activity_main2.*
@@ -17,11 +18,12 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.util.*
 import javax.security.auth.callback.Callback
+import kotlin.collections.ArrayList
 
 class MainActivity2 : AppCompatActivity() {
 
     lateinit var bluetoothAdapter: BluetoothAdapter
-    lateinit var bluetoothDevices: Array<BluetoothDevice>
+    private var bluetoothDevices = mutableListOf<Any>()
 
     lateinit var sendReceive: SendReceive
 
@@ -42,40 +44,42 @@ class MainActivity2 : AppCompatActivity() {
         setContentView(R.layout.activity_main2)
 
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        bluetoothDevices = arrayListOf()
 
         if (!bluetoothAdapter.isEnabled) {
             val enableIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-            startActivityForResult(intent, REQUEST_ENABLE_BLUETOOTH)
+            startActivityForResult(enableIntent, REQUEST_ENABLE_BLUETOOTH)
         }
 
         implementListeners()
     }
 
     private fun implementListeners() {
-        list_view.setOnItemClickListener {
-            var bt: Set<BluetoothDevice> = bluetoothAdapter.bondedDevices
-            var strings: Array<String> = emptyArray()
-            TODO("16:37 013 ролик тут правки")
+        btn_list_devices.setOnClickListener {
+            val bt: Set<BluetoothDevice> = bluetoothAdapter.bondedDevices
+            Log.e("TAG", "implementListeners: $bt")
+            val strings = mutableListOf<String>()
+
             var index = 0
 
-            if (bt.size > 0) {
+            if (bt.isNotEmpty()) {
                 bt.forEach {
-                    bluetoothDevices[index] = it
-                    strings[index] = it.name
+                    bluetoothDevices.add(it)
+                    strings.add(index, it.name)
                     index++
                 }
-                var arrayAdapter: ArrayAdapter<String> =
+                val arrayAdapter: ArrayAdapter<String> =
                     ArrayAdapter(applicationContext, android.R.layout.simple_list_item_1, strings)
                 list_view.adapter = arrayAdapter
             }
         }
 
         btn_listen.setOnClickListener {
-            val serverClass: ServerClass = ServerClass()
+            val serverClass = ServerClass()
             serverClass.start()
         }
         list_view.setOnItemClickListener { parent, view, position, id ->
-            val clientClass = ClientClass(bluetoothDevices[position])
+            val clientClass = ClientClass(bluetoothDevices[position] as BluetoothDevice)
             clientClass.start()
 
             tv_status.text = "Connecting"
@@ -102,7 +106,7 @@ class MainActivity2 : AppCompatActivity() {
             }
             STATE_MESSAGE_RECIEVED -> {
                 val readBuffer: ByteArray = it.obj as ByteArray
-                var tempMessage = String(readBuffer,0,it.arg1)
+                val tempMessage = String(readBuffer, 0, it.arg1)
                 tv_message.text = tempMessage
             }
         }
@@ -145,6 +149,7 @@ class MainActivity2 : AppCompatActivity() {
 
                     sendReceive = SendReceive(bluetoothSocket)
                     sendReceive.start()
+                    Log.d("TAG", "run: SendReceive initialized ---------------")
                     break
                 }
 
@@ -153,7 +158,7 @@ class MainActivity2 : AppCompatActivity() {
     }
 
     inner class ClientClass(device: BluetoothDevice) : Thread() {
-        //        private lateinit var device: BluetoothDevice
+//        private lateinit var device: BluetoothDevice
         private lateinit var socket: BluetoothSocket
 
         init {
@@ -184,8 +189,8 @@ class MainActivity2 : AppCompatActivity() {
 
     inner class SendReceive(socket: BluetoothSocket) : Thread() {
         var bluetoothSocket: BluetoothSocket = socket
-        lateinit var inputStream: InputStream
-        lateinit var outputStream: OutputStream
+        var inputStream: InputStream
+        var outputStream: OutputStream
 
         init {
             var tempIn: InputStream? = null
@@ -203,7 +208,7 @@ class MainActivity2 : AppCompatActivity() {
         }
 
         override fun run() {
-            var buffer = byteArrayOf(0)
+            val buffer = ByteArray(1024)
             var bytes: Int
 
             while (true) {
@@ -219,7 +224,7 @@ class MainActivity2 : AppCompatActivity() {
         fun write(bytes: ByteArray) {
             try {
                 outputStream.write(bytes)
-            } catch (e: IOException){
+            } catch (e: IOException) {
                 e.printStackTrace()
             }
         }
